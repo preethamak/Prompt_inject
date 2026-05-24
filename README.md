@@ -97,15 +97,26 @@ Observed output in notebook:
 Takeaway:
 - Combining lexical + semantic signals significantly improved results versus earlier single-branch baselines.
 
+---
 
-### Practical scope issue
+### 6) AutoResearch sweep
 
-##Implementation:
-  - Threshold tuning
-  - Embedding/XGBoost path
-  - 10k scale-up + ensemble
-  - New TF-IDF + Embedding + Fusion pipeline
+Implemented:
+- `autoresearch/` package with deterministic `train/val/test` splits and fixed random seed
+- Two-branch features (TF-IDF + Embeddings) + Fusion meta-model
+- Threshold selection on val with `FPR <= 0.10`
+- Run sweep with small/medium search space, JSONL logging, and leaderboard
+- Disk + memory embedding cache for fast reruns
 
+Observed result (current best run in `runs.jsonl`):
+- Best run: `s4` (BGE + wider n-grams + fusion C=2.0)
+- Val: `Accuracy 0.9227, F1 0.9239`
+- Test: `Accuracy 0.9241, F1 0.9243`
+- Threshold: `0.4604`
+
+Takeaway:
+- The code-based sweep makes results reproducible and consistent.
+- BGE embeddings + wider n-grams are currently the strongest configuration.
 
 ## What I Understood
 
