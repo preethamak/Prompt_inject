@@ -24,6 +24,7 @@ MAX_FPR_FOR_THRESHOLD = 0.10   # max allowed FPR when selecting threshold on val
 FPR_OPERATING_POINTS = (0.001, 0.005, 0.01, 0.05, 0.10)
 PRIMARY_METRIC = "val_f1"
 BASELINE_F1 = 0.90            # val_f1 threshold; notebook showed ~0.91 test F1
+FUSION_OOF_FOLDS = 5
 
 # ── Candidate search spaces (used by runner.generate_candidates) ─────────────
 TFIDF_WORD_NGRAMS   = [(1, 1), (1, 2), (1, 3)]
@@ -59,6 +60,7 @@ class RunConfig:
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     xgb: dict = field(default_factory=lambda: XGB_CONFIGS[0])
     fusion_c: float = 1.0
+    fusion_oof_folds: int = FUSION_OOF_FOLDS
     context_max_chars: int = CONTEXT_MAX_CHARS
     max_fpr: float = MAX_FPR_FOR_THRESHOLD
 
@@ -72,6 +74,7 @@ class RunConfig:
             "logreg_c": self.logreg_c,
             "embed_model": self.embed_model,
             "fusion_c": self.fusion_c,
+            "fusion_oof_folds": self.fusion_oof_folds,
             "context_max_chars": self.context_max_chars,
             "max_fpr": self.max_fpr,
         }

@@ -1,128 +1,50 @@
-# Prompt Injection Detection 
+# Prompt Injection Detection Research Repository
 
-Dataset used in notebook:
-- `MAlmasabi/Indirect-Prompt-Injection-BIPIA-GPT`
+This repository studies indirect prompt injection detection on `MAlmasabi/Indirect-Prompt-Injection-BIPIA-GPT`. It contains two kinds of work:
 
-## What Was Implemented
+1. Notebook-driven experimentation that established the initial baselines and improvement path.
+2. A small Python package, `autoresearch/`, that turns the final approach into a reproducible experiment pipeline.
 
-### 1) Baseline ONNX classifier (DeBERTa prompt injection model)
+The codebase converges on a two-branch design:
 
-Implemented:
-- Loaded `protectai/deberta-v3-base-prompt-injection-v2` using `transformers` + `optimum.onnxruntime`
-- Built text as:
-  - `Context: ...`
-  - `User intent: ...`
-- Evaluated on `train[:500]`
+- A lexical branch: TF-IDF over word and character n-grams with Logistic Regression.
+- A semantic branch: sentence embeddings with XGBoost.
+- A fusion layer: Logistic Regression over branch probabilities.
+- A validation-calibrated threshold with an explicit false-positive-rate cap.
+- An out-of-fold fusion protocol so validation stays reserved for model selection.
+- Slice-based diagnostics for table-heavy, long-context, and intent-style examples.
 
-Observed result:
-- Accuracy: ~`50.2%`
-- F1: very low for attack class (`~0.14` range in baseline cell output)
+The current best recorded run is `s4`, which achieved:
 
-Takeaway:
-- Baseline model underperformed on this setup/data formatting split.
-
----
-
-### 2) Threshold sweep on baseline probabilities
-
-Implemented:
-- Swept thresholds from `0.1` to `0.9`
-
-Observed result:
-- Only marginal change; performance stayed around baseline quality.
-
-Takeaway:
-- Threshold tuning alone cannot fix a weak base signal.
-
----
-
-### 3) Embedding + XGBoost branch
-
-Implemented:
-- Sentence embeddings with `sentence-transformers/all-MiniLM-L6-v2`
-- Trained `XGBClassifier` on 2k samples
-
-Observed result:
-- `XGBoost Results: Accuracy 0.7550, F1 0.7667`
-
-Then tried BGE embeddings:
-- `BAAI/bge-small-en-v1.5`
-- Result improved slightly:
-  - `Accuracy 0.7600, F1 0.7703`
-
-Takeaway:
-- Embedding + tree model gave a major jump over baseline and is practical.
-
----
-
-### 4) Scale-up to 10k + ensemble
-
-Implemented:
-- Scaled training data to 10k
-- Trained stronger XGBoost config
-- Tried soft-voting ensemble (`XGBoost + RandomForest`)
-
-Observed result:
-- XGBoost on 10k: `Accuracy 0.8305, F1 0.8328`
-- Ensemble on 10k: `Accuracy 0.8290, F1 0.8310`
-- Summary cell output:
-  - DeBERTa baseline (500): `50.2%`
-  - XGBoost (2k): `75.5%`
-  - XGBoost/10k summary line: `82.9%`
-
-Takeaway:
-- Bigger data + embedding branch was the main gain driver.
-- Ensemble did not materially beat tuned XGBoost.
-
----
-
-### 5) Added a clean upgrade pipeline
-
-Implemented new section:
-- `  Accuracy Upgrade Pipeline (TF-IDF + Embeddings + Fusion)`
-
-Contains:
-- Proper split (`train/val/test`)
-- Branch A: `TF-IDF (word + char n-grams) + LogisticRegression`
-- Branch B: `Embeddings + XGBoost`
-- Fusion: meta Logistic Regression over branch probabilities
-- Validation-based threshold calibration
-
-Observed output in notebook:
-- Fusion rows around `~0.91` test metrics in displayed table
-- Calibrated thresholds printed (example output includes XGBoost threshold `0.370`)
-- Best-model line currently prints:
-  - `Best model on test by F1: TF-IDF + LogReg (threshold=0.520)`
-
-Takeaway:
-- Combining lexical + semantic signals significantly improved results versus earlier single-branch baselines.
-
----
-
-### 6) AutoResearch sweep
-
-Implemented:
-- `autoresearch/` package with deterministic `train/val/test` splits and fixed random seed
-- Two-branch features (TF-IDF + Embeddings) + Fusion meta-model
-- Threshold selection on val with `FPR <= 0.10`
-- Run sweep with small/medium search space, JSONL logging, and leaderboard
-- Disk + memory embedding cache for fast reruns
-
-Observed result (current best run in `runs.jsonl`):
-- Best run: `s4` (BGE + wider n-grams + fusion C=2.0)
-- Val: `Accuracy 0.9227, F1 0.9239`
-- Test: `Accuracy 0.9241, F1 0.9243`
+- Validation: `accuracy=0.922667`, `f1=0.923885`
+- Test: `accuracy=0.924051`, `f1=0.924303`
 - Threshold: `0.4604`
 
-Takeaway:
-- The code-based sweep makes results reproducible and consistent.
-- BGE embeddings + wider n-grams are currently the strongest configuration.
+These numbers were produced by the earlier fusion protocol stored in `autoresearch_results/`. The codebase now uses a stricter protocol with out-of-fold fusion training and exact threshold search, so the next sweep should be treated as the new reference benchmark.
 
-## What I Understood
+## Documentation Map
 
-- A pre-trained classifier can fail badly if data style/domain differs(DeBERTa was for direct prompt injection, And datasets can in indirect).
-- Threshold tuning helps only when model signal is already meaningful.
-- Lexical models (TF-IDF + linear) are excellent at explicit attack patterns.
-- Embedding models capture paraphrased/semantic attacks better.
-- Fusion works because lexical and semantic branches fail on different samples.
-- Proper validation split + threshold calibration is important for stable, realistic performance.
+Start here if you want the full explanation set:
+
+- [Documentation hub](docs/README.md)
+- [Research narrative and experiment history](docs/experiments.md)
+- [AutoResearch system architecture](docs/autoresearch-system.md)
+- [Module and method reference](docs/module-reference.md)
+- [Results, limitations, and recommended corrections](docs/results-and-recommendations.md)
+
+## Repository Layout
+
+- `autoresearch/`: reproducible experiment package
+- `autoresearch_results/`: saved sweep results, embedding cache, and hard-error exports
+- `AutoResearch.ipynb`: package-driven sweep notebook
+- `TF_IDF.ipynb`: baseline-to-fusion development notebook
+- `XG_Boost.ipynb`: parallel experimentation notebook with overlapping model progression
+
+## Quick Reading Guide
+
+If your goal is:
+
+- To understand the research story, read [docs/experiments.md](docs/experiments.md).
+- To understand how the final pipeline works, read [docs/autoresearch-system.md](docs/autoresearch-system.md).
+- To inspect every class/function and why it exists, read [docs/module-reference.md](docs/module-reference.md).
+- To decide what should be improved next, read [docs/results-and-recommendations.md](docs/results-and-recommendations.md).

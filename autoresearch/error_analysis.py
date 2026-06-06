@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from .leaderboard import RESULTS_DIR
+from .evaluate import compute_slice_metrics
 
 
 def get_hard_false_negatives(
@@ -72,6 +73,9 @@ def export_hard_examples(
     out = {
         "run_id": run_id,
         "threshold": threshold,
+        "slice_metrics": compute_slice_metrics(
+            y_true, y_prob, rows, threshold, prefix="test"
+        ),
         "hard_false_negatives": get_hard_false_negatives(y_true, y_prob, rows, threshold, top_n),
         "hard_false_positives": get_hard_false_positives(y_true, y_prob, rows, threshold, top_n),
     }

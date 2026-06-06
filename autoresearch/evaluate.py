@@ -8,6 +8,7 @@ Objective hierarchy (locked per plan):
 """
 
 from __future__ import annotations
+import re
 import numpy as np
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
@@ -56,22 +57,38 @@ def select_threshold(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     max_fpr: float = MAX_FPR_FOR_THRESHOLD,
-    n_steps: int = 199,
 ) -> tuple[float, float]:
     """
-    Find threshold on y_prob that maximises F1 subject to FPR <= max_fpr.
+    Find the exact threshold on y_prob that maximises F1 subject to FPR <= max_fpr.
     Returns (best_threshold, best_val_f1).
     """
-    best_thr, best_f1 = 0.5, -1.0
-    for thr in np.linspace(0.01, 0.99, n_steps):
+    scores = np.asarray(y_prob, dtype=float)
+    unique_scores = np.unique(scores)
+    if unique_scores.size == 0:
+        return 0.5, 0.0
+
+    candidates = np.concatenate((
+        [np.nextafter(unique_scores.max(), np.inf)],
+        unique_scores[::-1],
+    ))
+
+    best_thr, best_f1, best_fpr = 0.5, -1.0, float("inf")
+    for thr in candidates:
         y_pred = (y_prob >= thr).astype(int)
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
         fpr = fp / (fp + tn + 1e-12)
         if fpr > max_fpr:
             continue
         f1 = f1_score(y_true, y_pred, zero_division=0)
-        if f1 > best_f1:
-            best_f1, best_thr = f1, float(thr)
+        if (
+            f1 > best_f1
+            or (np.isclose(f1, best_f1) and fpr < best_fpr)
+            or (np.isclose(f1, best_f1) and np.isclose(fpr, best_fpr) and thr > best_thr)
+        ):
+            best_f1, best_thr, best_fpr = f1, float(thr), fpr
+
+    if best_f1 < 0:
+        return float(np.nextafter(unique_scores.max(), np.inf)), 0.0
     return best_thr, best_f1
 
 
@@ -88,3 +105,77 @@ def evaluate_at_threshold(
     p = f"{prefix}_" if prefix else ""
     m[f"{p}threshold"] = round(threshold, 4)
     return m
+
+
+def _safe_slice_metrics(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    threshold: float,
+    prefix: str,
+) -> dict:
+    y_pred = (y_prob >= threshold).astype(int)
+    out = {
+        f"{prefix}_count": int(len(y_true)),
+        f"{prefix}_positive_rate": round(float(np.mean(y_true)), 6) if len(y_true) else 0.0,
+        f"{prefix}_pred_positive_rate": round(float(np.mean(y_pred)), 6) if len(y_pred) else 0.0,
+    }
+    if len(np.unique(y_true)) < 2:
+        out[f"{prefix}_accuracy"] = round(float(accuracy_score(y_true, y_pred)), 6)
+        out[f"{prefix}_f1"] = round(float(f1_score(y_true, y_pred, zero_division=0)), 6)
+        return out
+    out.update(compute_metrics(y_true, y_pred, y_prob, prefix=prefix))
+    return out
+
+
+def compute_slice_metrics(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    rows: list[dict],
+    threshold: float,
+    prefix: str = "",
+) -> dict:
+    """
+    Compute metrics for a few deployment-relevant slices.
+
+    Slices are heuristic, but stable enough to surface regressions on:
+    - short/long context
+    - table-heavy vs narrative context
+    - question-like vs instruction-like intents
+    """
+    p = f"{prefix}_" if prefix else ""
+    contexts = [str(r.get("context", "")) for r in rows]
+    intents = [str(r.get("user_intent", "")) for r in rows]
+    context_len = np.array([len(c) for c in contexts])
+
+    question_re = re.compile(r"^(what|which|who|when|where|why|how|did|does|is|are|can)\b", re.I)
+    instruction_re = re.compile(
+        r"^(summarize|list|extract|write|tell|give|show|describe|explain|ignore|return|provide)\b",
+        re.I,
+    )
+
+    masks = {
+        "short_context": context_len <= 300,
+        "long_context": context_len >= 1000,
+        "table_context": np.array(["|" in c for c in contexts]),
+        "narrative_context": np.array(["|" not in c for c in contexts]),
+        "question_intent": np.array([
+            ("?" in intent) or bool(question_re.match(intent.strip()))
+            for intent in intents
+        ]),
+        "instruction_intent": np.array([
+            bool(instruction_re.match(intent.strip()))
+            for intent in intents
+        ]),
+    }
+
+    out: dict[str, float | int] = {}
+    for name, mask in masks.items():
+        if not mask.any():
+            continue
+        out.update(_safe_slice_metrics(
+            y_true[mask],
+            y_prob[mask],
+            threshold,
+            prefix=f"{p}{name}",
+        ))
+    return out

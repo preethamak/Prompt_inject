@@ -24,6 +24,7 @@ class DataSplit:
     y_train: np.ndarray
     y_val: np.ndarray
     y_test: np.ndarray
+    rows_val: list
     rows_test: list          # raw dataset rows for test set (for error mining)
 
     @property
@@ -58,7 +59,7 @@ def load_split(
     )
 
     val_ratio = VAL_FRAC / test_size          # 0.15 / 0.30 = 0.50
-    x_val, x_test, y_val, y_test, _, rows_test = train_test_split(
+    x_val, x_test, y_val, y_test, rows_val, rows_test = train_test_split(
         x_temp, y_temp, rows_temp,
         test_size=(1.0 - val_ratio),
         random_state=random_state,
@@ -68,5 +69,6 @@ def load_split(
     return DataSplit(
         x_train=x_train, x_val=x_val, x_test=x_test,
         y_train=y_train, y_val=y_val, y_test=y_test,
+        rows_val=rows_val,
         rows_test=rows_test,
     )
