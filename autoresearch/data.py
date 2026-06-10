@@ -18,6 +18,7 @@ from .config import (
 @dataclass
 class DataSplit:
     """Holds all three splits as plain lists/arrays."""
+    rows_train: list
     x_train: list
     x_val: list
     x_test: list
@@ -67,6 +68,7 @@ def load_split(
     )
 
     return DataSplit(
+        rows_train=rows_train,
         x_train=x_train, x_val=x_val, x_test=x_test,
         y_train=y_train, y_val=y_val, y_test=y_test,
         rows_val=rows_val,

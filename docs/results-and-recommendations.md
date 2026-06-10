@@ -19,15 +19,38 @@ Important qualification:
 
 These metrics come from the saved historical artifacts. The code now uses a stricter protocol with out-of-fold fusion training and exact threshold selection, so the next rerun may report slightly lower but more trustworthy validation and test numbers.
 
+The repository now also includes a layered defense pass. That means you should compare two kinds of performance after rerunning:
+
+- base detector metrics
+- routed metrics
+- sanitized-context metrics and defense gate behavior
+
+## Best Current Notebook-Only Outcome
+
+The latest full notebook run recorded in `notebook_results/accuracy_runs.jsonl` is currently stronger than the older notebook baselines:
+
+- model: `tfidf_logreg_tuned_plus_dense`
+- validation F1: `0.935013`
+- test accuracy: `0.929333`
+- test F1: `0.930079`
+- test ROC-AUC: `0.979398`
+- test PR-AUC: `0.976407`
+
+This run comes from the notebook-only helper path rather than `autoresearch/`, so it should be treated as the current notebook reference, not as a replacement for the package benchmark.
+
 ## What Worked Best
 
 ### 1. The lexical branch is stronger than expected
 
 The saved runs show that the TF-IDF branch alone is already competitive. In the best configuration, validation TF-IDF F1 is above `0.918`, which means local lexical evidence is a major source of signal in this dataset.
 
+The latest notebook-only result strengthens that conclusion further. The tuned lexical-plus-dense variant reached test F1 above `0.930`, which is better than the standalone notebook embedding branch and better than the older notebook lexical baselines.
+
 ### 2. The embedding branch is useful but not dominant
 
 The embedding branch improves semantic coverage, but on its own it underperforms the lexical branch. Its value is mainly complementary.
+
+The latest notebook log reinforces this: `bge_small_xgb_tuned` reached `accuracy=0.863333`, `f1=0.870006`, well below the tuned lexical variants.
 
 ### 3. Fusion improves the final operating point
 
@@ -50,22 +73,22 @@ This implies that remaining errors are not only about obvious malicious phrasing
 
 ## Recommended Corrections
 
-## 1. Standardize the notebooks
+## 1. Keep one notebook path and treat the helper module as the source of truth
 
 Current issue:
 
-- `TF_IDF.ipynb` and `XG_Boost.ipynb` overlap heavily.
-- Secret-handling style is inconsistent across the two notebooks.
+- `TF_IDF.ipynb` and `XG_Boost.ipynb` still overlap heavily.
+- historical exploratory cells remain noisier than the new helper-backed section.
 
 Correction:
 
-- keep one canonical exploratory notebook
-- keep `AutoResearch.ipynb` as the reproducible orchestration notebook
-- use environment variables for all tokens and credentials
+- keep one canonical notebook-side accuracy section
+- keep `notebook_utils/accuracy_lab.py` as the implementation source of truth
+- keep `AutoResearch.ipynb` separate as the package orchestration notebook
 
 Why this is better:
 
-It reduces drift between experimental records and avoids documenting two nearly identical histories.
+It reduces drift between experimental records and prevents notebook JSON from becoming the only place where model logic lives.
 
 ## 2. Tighten the embedding cache key
 
@@ -95,7 +118,43 @@ Why this is better:
 
 It raises the work from good local experimentation to stronger research reproducibility.
 
-## 4. Deepen slice-based evaluation
+## 4. Compare notebook lexical-plus-dense against package fusion under one protocol
+
+Current issue:
+
+- the current notebook winner and the older package winner were produced under different execution paths
+
+Correction:
+
+- compare:
+  - notebook `tfidf_logreg_tuned_plus_dense`
+  - package TF-IDF only
+  - package fusion always
+  - package routed TF-IDF/fusion
+
+Why this is better:
+
+It separates real modeling improvement from protocol differences and clarifies whether the extra semantic branch is still worth its compute cost.
+
+## 5. Validate the layered defense against adaptive cases
+
+Current issue:
+
+- the new defense layer is heuristic and has not yet been benchmarked against adaptive or obfuscated attacks
+
+Correction:
+
+- add targeted evaluation for:
+  - instruction paraphrases
+  - HTML/Markdown hiding
+  - tool-call phrasing
+  - table-cell injections
+
+Why this is better:
+
+It tests whether chunk removal and alignment gating are robust enough to matter outside clean benchmark examples.
+
+## 6. Deepen slice-based evaluation
 
 Current issue:
 
@@ -113,7 +172,7 @@ Why this is better:
 
 It makes the new slice-metric framework more diagnostic and more useful for targeted data collection.
 
-## 5. Consider stronger semantic branches only after protocol cleanup
+## 7. Consider stronger semantic branches only after protocol cleanup
 
 Current issue:
 

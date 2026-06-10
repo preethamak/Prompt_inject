@@ -5,15 +5,20 @@ This documentation set is organized as a layered technical report rather than a 
 ## Read in This Order
 
 1. [Research narrative and experiment history](experiments.md)
-2. [AutoResearch system architecture](autoresearch-system.md)
-3. [Module and method reference](module-reference.md)
-4. [Results, limitations, and recommended corrections](results-and-recommendations.md)
+2. [Notebook-only accuracy experiments](notebook-accuracy-experiments.md)
+3. [AutoResearch system architecture](autoresearch-system.md)
+4. [Module and method reference](module-reference.md)
+5. [Results, limitations, and recommended corrections](results-and-recommendations.md)
 
 ## What Each Document Covers
 
 ### [experiments.md](experiments.md)
 
 Explains the progression from the weak DeBERTa baseline to embedding-based models, larger-scale training, ensemble attempts, and finally the fused lexical-semantic pipeline.
+
+### [notebook-accuracy-experiments.md](notebook-accuracy-experiments.md)
+
+Documents the notebook-only accuracy upgrade path, the reusable helper module, the JSONL experiment log, and the latest recorded notebook results.
 
 ### [autoresearch-system.md](autoresearch-system.md)
 

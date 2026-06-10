@@ -131,18 +131,23 @@ class EmbedXGBBranch:
 # ── Fusion meta-model ────────────────────────────────────────────────────────
 
 class FusionModel:
-    """Stacks branch probabilities and trains a LogReg meta-model on val set."""
+    """Stacks branch/meta features and trains a LogReg meta-model."""
 
     def __init__(self, c=1.0, random_state=RANDOM_STATE):
         self.meta = LogisticRegression(C=c, max_iter=2000, random_state=random_state)
         self._fitted = False
 
-    def fit(self, prob_a_val: np.ndarray, prob_b_val: np.ndarray, y_val: np.ndarray):
-        x = np.column_stack([prob_a_val, prob_b_val])
+    def fit(self, x_meta: np.ndarray, y_val: np.ndarray):
+        x = np.asarray(x_meta, dtype=float)
+        if x.ndim == 1:
+            x = x[:, None]
         self.meta.fit(x, y_val)
         self._fitted = True
 
-    def predict_proba(self, prob_a: np.ndarray, prob_b: np.ndarray) -> np.ndarray:
+    def predict_proba(self, x_meta: np.ndarray) -> np.ndarray:
         if not self._fitted:
             raise RuntimeError("FusionModel must be fitted before predict_proba.")
-        return self.meta.predict_proba(np.column_stack([prob_a, prob_b]))[:, 1]
+        x = np.asarray(x_meta, dtype=float)
+        if x.ndim == 1:
+            x = x[:, None]
+        return self.meta.predict_proba(x)[:, 1]

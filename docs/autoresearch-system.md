@@ -23,9 +23,12 @@ The runtime flow is:
 6. Fit a fusion meta-model on those out-of-fold predictions.
 7. Fit final branch models on the full training split.
 8. Select a threshold that maximizes validation F1 under an FPR cap.
-9. Evaluate on validation and, if good enough, on test.
-10. Save the run result.
-11. Export hard errors and slice metrics when needed.
+9. Learn a low-compute routing rule between TF-IDF and fusion.
+10. Evaluate on validation and, if good enough, on test.
+11. Optionally run a layered defense pass over context chunks.
+12. Optionally re-score sanitized texts and collect gate summaries.
+13. Save the run result.
+14. Export hard errors and slice metrics when needed.
 
 ## Configuration Layer
 
@@ -224,6 +227,38 @@ The evaluation layer now computes heuristic slices for:
 - instruction-like intent
 
 These slices are not domain-perfect labels, but they are stable enough to detect regressions that aggregate accuracy would hide.
+
+## Confidence Routing
+
+Primary file:
+
+- [`autoresearch/routing.py`](../autoresearch/routing.py)
+
+### What it adds
+
+- TF-IDF handles confident samples
+- fusion is used only near the TF-IDF uncertainty band
+- the routing margin is selected on validation data
+
+### Why this matters
+
+This is the main CPU-friendly accuracy experiment in the repository. It tries to preserve most of the lexical branch's speed while still using the fused model on hard examples.
+
+## Layered Defense Pass
+
+Primary file:
+
+- [`autoresearch/defenses.py`](../autoresearch/defenses.py)
+
+### What it adds
+
+- chunk-level risk scoring over external context
+- sanitization by replacing flagged chunks
+- lightweight alignment gating with `allow`, `review`, and `block`
+
+### Why this matters
+
+A single whole-input classifier is useful for ranking, but indirect prompt injection often lives in localized spans. The layered defense pass moves the repository closer to practical runtime defense: detect suspicious context, remove it, and measure how the downstream detector behaves on the sanitized version.
 
 ## Runner Layer
 

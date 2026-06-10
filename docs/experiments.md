@@ -4,12 +4,15 @@
 
 The repository investigates binary classification for indirect prompt injection detection. The central question is not only whether a model can separate safe from malicious examples, but which representation strategy remains robust when the attack signal is embedded inside ordinary-looking context.
 
-The workflow moved through four stages:
+The workflow moved through seven stages:
 
 1. Imported-model baseline.
 2. Embedding-based classical ML baseline.
 3. Scale-up and ensemble testing.
 4. Reproducible fusion pipeline with threshold calibration.
+5. Package extraction into `autoresearch/`.
+6. Stricter package protocol upgrades.
+7. Notebook-only accuracy upgrade outside `autoresearch/`.
 
 ## Stage 1: Pretrained DeBERTa Baseline
 
@@ -204,6 +207,60 @@ Important qualification:
 
 These saved artifacts reflect the earlier package version, where the fusion layer was trained on validation predictions. The current codebase has been upgraded to train fusion on out-of-fold training predictions and to use exact score-based threshold search. That means the next rerun should be interpreted as the new baseline for fair comparison.
 
+## Stage 7: Notebook-Only Accuracy Upgrade
+
+Primary source files:
+
+- [`TF_IDF.ipynb`](../TF_IDF.ipynb)
+- [`XG_Boost.ipynb`](../XG_Boost.ipynb)
+- [`notebook_utils/accuracy_lab.py`](../notebook_utils/accuracy_lab.py)
+- [`notebook_results/accuracy_runs.jsonl`](../notebook_results/accuracy_runs.jsonl)
+
+### What was implemented
+
+- a cache-first local dataset loader that reads the BIPIA JSONL snapshot directly
+- deterministic `train/val/test` splitting outside `autoresearch/`
+- a tuned lexical baseline with word `(1, 3)` and char `(3, 6)` TF-IDF n-grams
+- a denser lexical variant that adds lightweight structural signals:
+  - context length
+  - newline density
+  - table / pipe density
+  - code-fence count
+  - instruction-pattern hits
+- validation-selected thresholding for every notebook-side run
+- JSONL experiment logging for notebook executions
+
+### Why this approach was added
+
+There was a user constraint to avoid changing `autoresearch/` while still improving accuracy. The notebooks already contained the right modeling direction, but the implementation was fragmented and hard to rerun cleanly. This upgrade moved the accuracy-oriented notebook logic into a small helper module and made the notebook path reproducible enough to compare runs.
+
+### Recorded result
+
+From `notebook_results/accuracy_runs.jsonl`, the strongest full notebook run under `experiment_tag="notebook_accuracy_upgrade_v1"` is:
+
+- model: `tfidf_logreg_tuned_plus_dense`
+- validation F1: `0.935013`
+- test accuracy: `0.929333`
+- test F1: `0.930079`
+- test ROC-AUC: `0.979398`
+- test PR-AUC: `0.976407`
+- threshold: `0.5000`
+
+The same log also shows:
+
+- `tfidf_logreg_baseline`: `accuracy=0.911333`, `f1=0.912211`
+- `tfidf_logreg_tuned`: `accuracy=0.918667`, `f1=0.919842`
+- `bge_small_xgb_tuned`: `accuracy=0.863333`, `f1=0.870006`
+
+### Interpretation
+
+This notebook result is important for two reasons:
+
+1. A tuned lexical model with a few structure-aware dense signals outperformed the notebook-side embedding branch by a wide margin.
+2. The notebook-only path slightly exceeds the older saved `s4` test metrics, although the protocols are still not identical enough to claim a strict apples-to-apples win over the package result.
+
+The practical conclusion is that the next accuracy iteration should likely keep lexical features central and treat semantic features as optional augmentation rather than the default driver.
+
 ## Main Research Conclusions
 
 1. Off-the-shelf prompt injection detectors do not automatically transfer to indirect prompt injection datasets.
@@ -212,3 +269,4 @@ These saved artifacts reflect the earlier package version, where the fusion laye
 4. More data improves the embedding-based branch substantially.
 5. Lexical and semantic branches capture different evidence, so fusion is justified.
 6. Validation-based threshold selection is part of the model, not merely a reporting detail.
+7. In the current notebook-only path, tuned lexical features plus simple structure-aware signals outperform the standalone embedding branch.

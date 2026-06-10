@@ -25,6 +25,10 @@ FPR_OPERATING_POINTS = (0.001, 0.005, 0.01, 0.05, 0.10)
 PRIMARY_METRIC = "val_f1"
 BASELINE_F1 = 0.90            # val_f1 threshold; notebook showed ~0.91 test F1
 FUSION_OOF_FOLDS = 5
+DEFENSE_CHUNK_CHARS = 320
+DEFENSE_OVERLAP_CHARS = 64
+DEFENSE_CHUNK_THRESHOLD_DELTA = 0.10
+ROUTING_MARGIN_GRID = (0.00, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12)
 
 # ── Candidate search spaces (used by runner.generate_candidates) ─────────────
 TFIDF_WORD_NGRAMS   = [(1, 1), (1, 2), (1, 3)]
@@ -61,6 +65,11 @@ class RunConfig:
     xgb: dict = field(default_factory=lambda: XGB_CONFIGS[0])
     fusion_c: float = 1.0
     fusion_oof_folds: int = FUSION_OOF_FOLDS
+    enable_defense: bool = False
+    defense_chunk_chars: int = DEFENSE_CHUNK_CHARS
+    defense_overlap_chars: int = DEFENSE_OVERLAP_CHARS
+    defense_chunk_threshold_delta: float = DEFENSE_CHUNK_THRESHOLD_DELTA
+    routing_margin_grid: tuple[float, ...] = ROUTING_MARGIN_GRID
     context_max_chars: int = CONTEXT_MAX_CHARS
     max_fpr: float = MAX_FPR_FOR_THRESHOLD
 
@@ -75,6 +84,11 @@ class RunConfig:
             "embed_model": self.embed_model,
             "fusion_c": self.fusion_c,
             "fusion_oof_folds": self.fusion_oof_folds,
+            "enable_defense": self.enable_defense,
+            "defense_chunk_chars": self.defense_chunk_chars,
+            "defense_overlap_chars": self.defense_overlap_chars,
+            "defense_chunk_threshold_delta": self.defense_chunk_threshold_delta,
+            "routing_margin_grid": list(self.routing_margin_grid),
             "context_max_chars": self.context_max_chars,
             "max_fpr": self.max_fpr,
         }

@@ -15,6 +15,8 @@ Modules:
 - [`data.py`](../autoresearch/data.py)
 - [`features.py`](../autoresearch/features.py)
 - [`evaluate.py`](../autoresearch/evaluate.py)
+- [`defenses.py`](../autoresearch/defenses.py)
+- [`routing.py`](../autoresearch/routing.py)
 - [`leaderboard.py`](../autoresearch/leaderboard.py)
 - [`error_analysis.py`](../autoresearch/error_analysis.py)
 - [`runner.py`](../autoresearch/runner.py)
@@ -280,6 +282,60 @@ Computes per-slice metrics for deployment-relevant subsets such as long contexts
 
 It turns error analysis into something comparable across runs instead of a purely qualitative notebook exercise.
 
+## `autoresearch.defenses`
+
+### `build_model_text(context, user_intent, context_max_chars)`
+
+Creates the detector input string used consistently across the layered defense pass.
+
+### `split_context_into_chunks(context, chunk_chars=320, overlap_chars=64)`
+
+Splits external context into partially overlapping chunks while preferring paragraph or row boundaries.
+
+#### Why this method matters
+
+Indirect prompt injection is often local. Chunking lets the repository detect and remove suspicious spans instead of treating the whole context as inseparable.
+
+### `assess_task_alignment(user_intent, context, removed_chunks, total_chunks)`
+
+Returns a heuristic risk score and gate label based on instruction-like content and how much context had to be removed.
+
+### `LayeredDefensePipeline`
+
+Runs chunk scoring, sanitization, and gating with the already-trained detector branches.
+
+#### `analyze_row(row)`
+
+Returns:
+
+- original detector text
+- sanitized detector text
+- chunk-level assessments
+- alignment risk
+- gate label
+
+#### `analyze_rows(rows)`
+
+Applies the same layered defense process across a split.
+
+### `summarize_defense_assessments(assessments, prefix="")`
+
+Reduces chunk-removal and gate behavior into run-level summary fields.
+
+## `autoresearch.routing`
+
+### `build_routed_probabilities(tfidf_prob, fusion_prob, tfidf_threshold, margin)`
+
+Uses TF-IDF by default and swaps in fusion predictions only for samples near the TF-IDF uncertainty band.
+
+### `select_routing_strategy(...)`
+
+Searches the routing-margin grid on validation data and chooses the one with the best F1 under the global threshold rule.
+
+#### Why this method matters
+
+It gives the repository a low-compute selective-ensemble strategy that is easier to run on CPU than always relying on the semantic branch.
+
 ### `evaluate_at_threshold(y_true, y_prob, threshold, prefix="")`
 
 Produces the full metric set at one selected operating point.
@@ -383,8 +439,11 @@ This is the core experimental method. It performs:
 4. final branch fitting on full training data
 5. exact threshold selection on validation
 6. validation evaluation plus slice metrics
-7. optional test evaluation plus slice metrics
-8. branch-level diagnostic logging
+7. routed evaluation on validation using TF-IDF-first selective fusion
+8. optional test evaluation plus slice metrics
+9. routed evaluation on test
+10. optional layered defense evaluation on sanitized rows
+11. branch-level diagnostic logging
 
 #### Why this method is central
 
